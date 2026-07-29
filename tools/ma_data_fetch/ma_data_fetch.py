@@ -9,6 +9,7 @@ import html
 import json
 import re
 import sys
+import tempfile
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -330,6 +331,38 @@ def download_announcement(url: str, title: str, output_dir: Path, overwrite: boo
     return output_path.resolve()
 
 
+def verify_candidates(codes: list[str]) -> list[dict[str, Any]]:
+    """Verify that each candidate has retrievable merger screen data."""
+    results: list[dict[str, Any]] = []
+    with tempfile.TemporaryDirectory(prefix="ma-candidate-check-") as temp_dir:
+        output_dir = Path(temp_dir)
+        for raw_code in codes:
+            code = raw_code.strip()
+            if not code:
+                continue
+            market = infer_ths_market(code)
+            try:
+                result = fetch_screen_data(code, market, output_dir)
+                results.append(
+                    {
+                        "code": code,
+                        "available": True,
+                        "company": result["company"],
+                        "case_id": result["case_id"],
+                        "first_announcement_date": result["first_announcement_date"],
+                    }
+                )
+            except (FetchError, OSError) as error:
+                results.append(
+                    {
+                        "code": code,
+                        "available": False,
+                        "error": str(error),
+                    }
+                )
+    return results
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="获取并购重组画面原始数据，并按首次公告日期查找巨潮资讯公告候选。"
@@ -344,6 +377,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     fetch_parser.add_argument("--output-dir", type=Path, default=Path.cwd(), help="输出目录")
     fetch_parser.add_argument("--json", action="store_true", help="以 JSON 输出结果摘要")
+
+    verify_parser = subparsers.add_parser(
+        "verify-candidates",
+        help="批量验证候选股票能否获取并购重组画面数据，不保留临时文件",
+    )
+    verify_parser.add_argument("codes", nargs="+", help="待验证的股票代码")
+    verify_parser.add_argument("--json", action="store_true", help="以 JSON 输出验证结果")
 
     find_parser = subparsers.add_parser("find-announcements", help="查找公告候选，不下载")
     find_parser.add_argument("--code", required=True, help="股票代码")
@@ -381,6 +421,22 @@ def main() -> int:
                 print(f"动画页面：{result['animation_url']}")
                 print(f"原始数据：{result['screen_data_path']}")
             return 0
+
+        if args.command == "verify-candidates":
+            results = verify_candidates(args.codes)
+            if args.json:
+                print(json.dumps(results, ensure_ascii=False, indent=2))
+            else:
+                for result in results:
+                    if result["available"]:
+                        print(
+                            f"[可获取] {result['company']}（{result['code']}）"
+                            f" | 案例 ID：{result['case_id']}"
+                            f" | 首次公告日期：{result['first_announcement_date']}"
+                        )
+                    else:
+                        print(f"[不可获取] {result['code']} | {result['error']}")
+            return 0 if all(item["available"] for item in results) else 1
 
         if args.command == "find-announcements":
             first_date = date.fromisoformat(args.first_date)

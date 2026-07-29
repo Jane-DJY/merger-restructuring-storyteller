@@ -1,7 +1,7 @@
 interface:
   display_name: "并购重组视频文案"
-  short_description: "自动取数、确认公告并撰写并购重组视频旁白，严格锁定画面步骤"
-  default_prompt: "使用 $merger-restructuring-storyteller，按股票代码自动获取画面数据、检索并确认公告，再严格沿画面步骤撰写并购重组视频旁白。"
+  short_description: "筛选近七日热门标的、确认公告并撰写并购重组视频旁白"
+  default_prompt: "使用 $merger-restructuring-storyteller，先筛选过去七天可取数的热门并购重组股票供我选择，再确认主公告并撰写分段脚本。"
 
 policy:
   allow_implicit_invocation: true

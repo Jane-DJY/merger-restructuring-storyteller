@@ -102,17 +102,25 @@ def lint(path: Path) -> tuple[list[str], list[str]]:
         for field in ["【画面】", "【来源】", "【核实内容】"]:
             if field not in text:
                 errors.append(f"缺少必要字段：{field}")
-        allowed_screens = {"并购重组范式", "html chart", "白板", "b-roll素材"}
+        allowed_screens = {
+            "并购重组范式",
+            "公告截图",
+            "html chart",
+            "白板",
+            "b-roll素材",
+        }
         for match in re.finditer(r"【画面】：([^\n]+)", text):
             screen = match.group(1).strip()
             if screen not in allowed_screens:
                 warnings.append(
-                    f"第 {line_number(text, match.start())} 行：画面类型 `{screen}` 不在四选一范围内。"
+                    f"第 {line_number(text, match.start())} 行：画面类型 `{screen}` 不在五选一范围内。"
                 )
 
         main_end = source_match.start() if source_match else len(text)
         main_delivery_text = text[:main_end]
         screen_matches = list(re.finditer(r"【画面】：([^\n]+)", main_delivery_text))
+        if not any(match.group(1).strip() == "公告截图" for match in screen_matches):
+            warnings.append("主版未使用独立的 `公告截图`。默认应至少展示一次用户确认的主公告。")
         for index, match in enumerate(screen_matches):
             screen = match.group(1).strip()
             segment_end = (
